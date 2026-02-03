@@ -5,7 +5,7 @@ compile_payload:
 	gcc -shared -fPIC src/payload.c -o obj/payload.so
 
 run: compile_injectra compile_payload
-	./obj/miniInjectra $(pidof target_process)
+	./obj/miniInjectra $(PID) $(LIB_PATH)
 
 clear:
 	rm -f obj/miniInjectra obj/payload.so
