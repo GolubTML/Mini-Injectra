@@ -6,6 +6,8 @@
 #include <sys/ptrace.h>
 #include <sys/wait.h>
 #include <sys/user.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <string.h>
 #include <dlfcn.h>
 #include <unistd.h>
@@ -303,6 +305,81 @@ int main(int argc, char** argv)
     }
 
     long handle = remote_call(pid, remote_dlopen, (unsigned long)remote_path_lib, RTLD_NOW | RTLD_GLOBAL, 0, 0, 0, 0);
+
+    int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+
+    struct sockaddr_un addr = {0};
+    addr.sun_family = AF_UNIX;
+    strcpy(addr.sun_path, "/tmp/injectra.sock");
+
+    int connected = 0;
+
+    for (int i = 0; i < 500; ++i)
+    {
+        if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) == 0)
+        {
+            connected = 1;
+            break;
+        }
+        
+        usleep(100000);
+    }
+
+    if (!connected)
+    {
+        printf("[-] Failed to connect to payload socket!\n");
+        return 1;
+    }
+    
+    char input_buf[512] = {0};
+
+    while (1)
+    {
+        printf("injectra> ");
+
+        fflush(stdout);
+        
+        if (!fgets(input_buf, sizeof(input_buf), stdin))
+        {
+            break;
+        }
+
+        if (strcmp(input_buf, "exit\n") == 0)
+        {
+            break;
+        }
+
+        write(sock, input_buf, strlen(input_buf));
+
+        char reply_buf[1024] = {0};
+        ssize_t n = read(sock, reply_buf, sizeof(reply_buf) - 1);
+
+        if (n > 0)
+        {
+            printf("%s", reply_buf);
+        }
+        else
+        {
+            printf("[-] Failed to read from payload socket!\n");
+            return 1;
+        }
+    }
+
+    /*write(sock, "ping\n", 5);
+
+    char buffer[256] = {0};
+    ssize_t n = read(sock, buffer, sizeof(buffer) - 1);
+
+    if (n > 0)
+    {
+        buffer[n] = '\0';
+        printf("Received from payload: %.*s\n", (int)n, buffer);
+    }
+    else 
+    {
+        printf("[-] Failed to read from payload socket!\n");
+        return 1;
+    }*/
 
     printf("Press any key..\n");
     getchar();
